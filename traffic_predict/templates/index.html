@@ -1,0 +1,544 @@
+<html>
+
+<script type=text/javascript src="{{ url_for('static', filename="js/echarts.js")}}"></script>
+
+<head>
+	<title>交通状态预测</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<style type="text/css"></style>
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/css/style.css') }}">
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/css_button/pushy-buttons.css') }}">
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+	<div id="rectangle"></div>
+	<div id="rectangle2"></div>
+	<div><h1 id='head'><center>深圳市福田区交通态势预测系统</center></h1></div>
+	
+{#	<div><h1 id='location'>   2019 年 05 月 18 日 09:45 </h1></div>#}
+
+    <div><h1 id='location2'></h1>  </div>
+
+    <div><h1 id='add1'> 当前天气状况：</h1></div>
+    <div><h1 id='add2'> 历史同期路况：</h1></div>
+    <div><h1 id='add3'> 常规高峰时段：</h1></div>
+
+	<div id="allmap"></div>
+
+
+    <div id="predict_button">
+        <form method="POST" name = "form1">
+            <input type="text" name = "lnglat" id='lnglat' placeholder = "请再地图点击获取经纬度"/>
+            <input type="text" name = "roadname" id='roadname' placeholder = "位置"/>
+            <select name = "predict_horizon" id="predict_horizon"> #}
+				<option value="0">预测时长</option>
+				<option value="5">1x5 min</option>
+				<option value="15">3x5 min</option>
+				<option value="30">6x5 min</option>
+			</select>
+            <input type="submit" id='submit' value = "预测"/>
+        </form>
+    </div>
+
+	<div id="predict" ></div>
+
+</body>
+<!-- Load TensorFlow.js -->
+<script src="https://webapi.amap.com/maps?v=1.4.14&key=cbcb238563ab3fd01996446884a2b4de"></script>
+<script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.14&key=cbcb238563ab3fd01996446884a2b4de&plugin=AMap.Geocoder"></script>
+<script type="text/javascript">
+
+    let  myDate=new Date();
+    {#document.getElementById("location").innerHTML = formatDate(myDate);#}
+    let hr = myDate.getHours();
+    let min = Math.floor(myDate.getMinutes()/5)*5;
+
+    myDate.setHours(hr);
+    myDate.setMinutes(min-5*9);
+    myDate.setSeconds(0);
+
+    data_time=[]
+    for (i = 0; i < 10; i++) {
+    	myDate.setMinutes( myDate.getMinutes() + 5 );
+    	data_time.push(formatDate(myDate))
+		{#alert(formatDate(myDate));#}
+ 	}
+
+	 function formatDate(date) {
+	    var y = date.getFullYear();
+	    var m = date.getMonth() + 1;
+	    m = m < 10 ? ('0' + m) : m;
+	    var d = date.getDate();
+	    d = d < 10 ? ('0' + d) : d;
+	    var h = date.getHours();
+	    var minute = date.getMinutes();
+	    minute = minute < 10 ? ('0' + minute) : minute;
+	    var second= date.getSeconds();
+	    second = minute < 10 ? ('0' + second) : second;
+	    return y + '-' + m + '-' + d+' '+h+':'+minute+':'+ second;
+	};
+
+
+
+    var map = new AMap.Map('allmap', {
+       center:[114.049637,22.546739],
+       zoom:15
+    });
+
+    var myChart = echarts.init(document.getElementById('predict'));
+
+    index = 0;
+
+    his=[[60, 62, 51, 54, 40],     [40, 42, 51, 53, 48],    [56, 52, 41, 54, 50]];
+    pred=[[58, 64, 53, 59, 42,35],[45, 34, 51, 57, 50, 40],[52, 50, 43, 51, 51, 50]];
+
+    var colors = ['#5793f3', '#d14a61', '#675bba'];
+
+    option = {
+    backgroundColor:'rgba(128, 108, 108, 0.3)',
+    tooltip: {
+    trigger: 'axis'
+    },
+    legend: {
+    textStyle: {color: 'white'},
+    data:['观测值','预测值']
+    },
+    grid: {
+    left: '3%',
+    right: '4%',
+    bottom: '3%',
+    containLabel: true
+    },
+    xAxis: {
+    type: 'category',
+    boundaryGap: false,
+
+    // name:'时间',
+    data: [data_time[5],data_time[6],data_time[7],data_time[8],data_time[9]],
+    axisLabel: {
+                    textStyle: {fontSize: 16},
+                rotate:90,
+        },
+    axisLine:{
+        show: true,
+        lineStyle: {
+            color: 'white',
+            type: 'solid',
+            width: 2.5
+        }
+    }
+    },
+
+    yAxis:[{
+            type: 'value',
+            axisLabel : {
+                textStyle: {fontSize: 16},
+                formatter: '{value} km/h'
+            },
+            axisLine:{
+                show: true,
+                lineStyle: {
+                    color: 'white',
+                    type: 'solid',
+                    width: 2.5
+                }
+            }
+        }],
+    series: [
+    {
+    name:'观测值',
+    type:'line',
+    itemStyle : {
+        color:'#93DB70',
+        width:3
+    },
+    },
+    {
+    name:'预测值',
+    type:'line',
+    itemStyle : {
+        color:'red',
+        width:3,
+    },
+
+    // data:[prediction[0]]
+    }
+    ]
+    };
+
+    myChart.clear();
+    myChart.setOption(option);
+
+
+     map.on('click', function(e) {
+        document.getElementById("lnglat").value = e.lnglat;
+        regeoCode();
+
+        });
+
+    var geocoder, marker;
+    function regeoCode() {
+        if(!geocoder){
+            geocoder = new AMap.Geocoder({
+                city: "010", //城市设为北京，默认：“全国”
+                radius: 1000 //范围，默认：500
+            });
+        }
+        var lnglat  = document.getElementById('lnglat').value.split(',');
+         if(!marker){
+            marker = new AMap.Marker();
+            map.add(marker);
+        }
+        marker.setPosition(lnglat);
+
+        geocoder.getAddress(lnglat, function(status, result) {
+            if (status === 'complete'&&result.regeocode) {
+                var address = result.regeocode.addressComponent.street;
+                document.getElementById('roadname').value = address;
+            }else{
+                log.error('根据经纬度查询地址失败')
+            }
+        });
+    }
+
+    map.on('click',function(e){
+        document.getElementById('lnglat').value = e.lnglat;
+        regeoCode();
+    })
+
+    document.getElementById('lnglat').onkeydown = function(e) {
+        if (e.keyCode === 13) {
+            regeoCode();
+            return false;
+        }
+        return true;
+    };
+    if ("{{ Predict_Horizon }}"=='5'){
+
+        var prediction="{{ RESULT }}".split(',');
+        {#alert(prediction[0])#}
+        document.getElementById("location2").innerHTML = document.getElementById('roadname').value;
+        var myChart = echarts.init(document.getElementById('predict'));
+
+
+        var colors = ['#5793f3', '#d14a61', '#675bba'];
+
+        option = {
+                    title: {
+            text: "{{ ROAD }}",
+                        textStyle: {
+            color: '#fff',fontSize: 22
+        }
+        },
+        backgroundColor:'rgba(128, 108, 108, 0.3)',
+        tooltip: {
+        trigger: 'axis'
+        },
+        legend: {
+        textStyle: {color: 'white',"fontSize": 18},
+        data:['观测值','预测值']
+        },
+        grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+
+            data: [data_time[5],data_time[6],data_time[7],data_time[8],data_time[9]],
+            axisLabel: {
+                    textStyle: {fontSize: 16},
+                rotate:90,
+        },
+        // name:'时间',
+
+
+        axisLine:{
+            show: true,
+
+            lineStyle: {
+                color: 'white',
+                type: 'solid',
+                width: 2.5
+            }
+        }
+        },
+
+        yAxis:[{
+            type: 'value',
+            axisLabel : {
+                textStyle: {fontSize: 16},
+                formatter: '{value} km/h'
+            },
+            axisLine:{
+                show: true,
+                lineStyle: {
+                    color: 'white',
+                    type: 'solid',
+                    width: 2.5
+                }
+            }
+        }],
+        series: [
+        {
+        name:'观测值',
+        type:'line',
+        itemStyle : {
+            color:'#93DB70',
+            width:3
+        },
+        data:[parseFloat(prediction[5]),parseFloat(prediction[6]),parseFloat(prediction[7]),parseFloat(prediction[8]),'-']
+        },
+        {
+        name:'预测值',
+        type:'line',
+        itemStyle : {
+            color:'red',
+            width:3,
+        },
+        data:['-','-','-',parseFloat(prediction[8]),parseFloat(prediction[9])]
+        // data:[prediction[0]]
+        }
+        ]
+        };
+
+        myChart.clear();
+        myChart.setOption(option);
+    }
+
+    if ("{{ Predict_Horizon }}"=='15'){
+
+        let  myDate=new Date();
+        {#document.getElementById("location").innerHTML = formatDate(myDate);#}
+        let hr = myDate.getHours();
+        let min = Math.floor(myDate.getMinutes()/5)*5;
+
+        myDate.setHours(hr);
+        myDate.setMinutes(min-5*9);
+        myDate.setSeconds(0);
+
+        data_time=[]
+        for (i = 0; i < 12; i++) {
+            myDate.setMinutes( myDate.getMinutes() + 5 );
+            data_time.push(formatDate(myDate))
+            {#alert(formatDate(myDate));#}
+        }
+
+        var prediction="{{ RESULT }}".split(',');
+        {#alert(prediction[0])#}
+        document.getElementById("location2").innerHTML = document.getElementById('roadname').value;
+        var myChart = echarts.init(document.getElementById('predict'));
+
+
+        var colors = ['#5793f3', '#d14a61', '#675bba'];
+
+        option = {
+                    title: {
+            text: "{{ ROAD }}",
+                        textStyle: {
+            color: '#fff',fontSize: 22
+        }
+        },
+        backgroundColor:'rgba(128, 108, 108, 0.3)',
+        tooltip: {
+        trigger: 'axis'
+        },
+        legend: {
+        textStyle: {color: 'white',"fontSize": 18},
+        data:['观测值','预测值']
+        },
+        grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+
+            data: [data_time[5],data_time[6],data_time[7],data_time[8],data_time[9],data_time[10],data_time[11]],
+            axisLabel: {
+                    textStyle: {fontSize: 16},
+                rotate:90,
+        },
+        // name:'时间',
+
+
+        axisLine:{
+            show: true,
+
+            lineStyle: {
+                color: 'white',
+                type: 'solid',
+                width: 2.5
+            }
+        }
+        },
+
+        yAxis:[{
+            type: 'value',
+            axisLabel : {
+                textStyle: {fontSize: 16},
+                formatter: '{value} km/h'
+            },
+            axisLine:{
+                show: true,
+                lineStyle: {
+                    color: 'white',
+                    type: 'solid',
+                    width: 2.5
+                }
+            }
+        }],
+        series: [
+        {
+        name:'观测值',
+        type:'line',
+        itemStyle : {
+            color:'#93DB70',
+            width:3
+        },
+        data:[parseFloat(prediction[5]),parseFloat(prediction[6]),parseFloat(prediction[7]),parseFloat(prediction[8]),'-','-','-']
+        },
+        {
+        name:'预测值',
+        type:'line',
+        itemStyle : {
+            color:'red',
+            width:3,
+        },
+        data:['-','-','-',parseFloat(prediction[8]),parseFloat(prediction[9]),parseFloat(prediction[10]),parseFloat(prediction[11])]
+        // data:[prediction[0]]
+        }
+        ]
+        };
+
+        myChart.clear();
+        myChart.setOption(option);
+    }
+
+    if ("{{ Predict_Horizon }}"=='30'){
+
+        let  myDate=new Date();
+        {#document.getElementById("location").innerHTML = formatDate(myDate);#}
+        let hr = myDate.getHours();
+        let min = Math.floor(myDate.getMinutes()/5)*5;
+
+        myDate.setHours(hr);
+        myDate.setMinutes(min-5*9);
+        myDate.setSeconds(0);
+
+        data_time=[]
+        for (i = 0; i < 15; i++) {
+            myDate.setMinutes( myDate.getMinutes() + 5 );
+            data_time.push(formatDate(myDate))
+            {#alert(formatDate(myDate));#}
+        }
+
+        var prediction="{{ RESULT }}".split(',');
+        {#alert(prediction[0])#}
+        document.getElementById("location2").innerHTML = document.getElementById('roadname').value;
+        var myChart = echarts.init(document.getElementById('predict'));
+
+
+        var colors = ['#5793f3', '#d14a61', '#675bba'];
+
+        option = {
+                    title: {
+            text: "{{ ROAD }}",
+                        textStyle: {
+            color: '#fff',fontSize: 22
+        }
+        },
+        backgroundColor:'rgba(128, 108, 108, 0.3)',
+        tooltip: {
+        trigger: 'axis'
+        },
+        legend: {
+        textStyle: {color: 'white',"fontSize": 18},
+        data:['观测值','预测值']
+        },
+        grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            boundaryGap: false,
+
+            data: [data_time[5],data_time[6],data_time[7],data_time[8],data_time[9],data_time[10],data_time[11],data_time[12],data_time[13],data_time[14]],
+            axisLabel: {
+                    textStyle: {fontSize: 16},
+                rotate:90,
+        },
+        // name:'时间',
+
+
+        axisLine:{
+            show: true,
+
+            lineStyle: {
+                color: 'white',
+                type: 'solid',
+                width: 2.5
+            }
+        }
+        },
+
+        yAxis:[{
+            type: 'value',
+            axisLabel : {
+                textStyle: {fontSize: 16},
+                formatter: '{value} km/h'
+            },
+            axisLine:{
+                show: true,
+                lineStyle: {
+                    color: 'white',
+                    type: 'solid',
+                    width: 2.5
+                }
+            }
+        }],
+        series: [
+        {
+        name:'观测值',
+        type:'line',
+        itemStyle : {
+            color:'#93DB70',
+            width:3
+        },
+        data:[parseFloat(prediction[5]),parseFloat(prediction[6]),parseFloat(prediction[7]),parseFloat(prediction[8]),'-','-','-','-','-','-']
+        },
+        {
+        name:'预测值',
+        type:'line',
+        itemStyle : {
+            color:'red',
+            width:3,
+        },
+        data:['-','-','-',parseFloat(prediction[8]),parseFloat(prediction[9]),parseFloat(prediction[10]),parseFloat(prediction[11]),parseFloat(prediction[12]),parseFloat(prediction[13]),parseFloat(prediction[14])]
+        // data:[prediction[0]]
+        }
+        ]
+        };
+
+        myChart.clear();
+        myChart.setOption(option);
+    }
+
+</script>
+
+
+
+
+
+</html>
